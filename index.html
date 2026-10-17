@@ -1,0 +1,1447 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>AegisGraph — Autonomous Multi-Agent Observability &amp; Context Engine</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700&family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
+  <script src="https://unpkg.com/react@18/umd/react.production.min.js" crossorigin></script>
+  <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js" crossorigin></script>
+  <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+  <script src="https://unpkg.com/d3@7/dist/d3.min.js"></script>
+  <script src="https://unpkg.com/react-force-graph-2d@1.25.5/dist/react-force-graph-2d.min.js"></script>
+  <style>
+    :root {
+      --bg-dark: #030712;
+      --panel-bg: rgba(11, 18, 38, 0.94);
+      --card-bg: rgba(15, 23, 42, 0.85);
+      --card-hover: rgba(30, 41, 59, 0.8);
+      --border: rgba(51, 65, 85, 0.65);
+      --border-focus: #06b6d4;
+      --cyan: #06b6d4;
+      --cyan-glow: rgba(6, 182, 212, 0.25);
+      --purple: #a855f7;
+      --purple-glow: rgba(168, 85, 247, 0.25);
+      --emerald: #10b981;
+      --emerald-glow: rgba(16, 185, 129, 0.25);
+      --rose: #f43f5e;
+      --rose-glow: rgba(244, 63, 94, 0.25);
+      --amber: #f59e0b;
+      --amber-glow: rgba(245, 158, 11, 0.25);
+      --text-main: #f8fafc;
+      --text-sub: #cbd5e1;
+      --text-muted: #94a3b8;
+    }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      background: var(--bg-dark);
+      color: var(--text-main);
+      font-family: 'Plus Jakarta Sans', sans-serif;
+      overflow: hidden;
+      height: 100vh;
+      width: 100vw;
+      user-select: none;
+    }
+    #root { height: 100vh; width: 100vw; display: flex; flex-direction: column; }
+
+    ::-webkit-scrollbar { width: 5px; height: 5px; }
+    ::-webkit-scrollbar-track { background: transparent; }
+    ::-webkit-scrollbar-thumb { background: rgba(51, 65, 85, 0.8); border-radius: 99px; }
+    ::-webkit-scrollbar-thumb:hover { background: rgba(100, 116, 139, 0.9); }
+
+    /* Top Nav */
+    header {
+      background: rgba(8, 14, 30, 0.96);
+      backdrop-filter: blur(16px);
+      border-bottom: 1px solid var(--border);
+      padding: 8px 18px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      z-index: 50;
+      flex-shrink: 0;
+      height: 52px;
+    }
+    .brand-section { display: flex; align-items: center; gap: 12px; }
+    .brand-logo {
+      width: 32px; height: 32px; border-radius: 8px;
+      background: linear-gradient(135deg, #06b6d4, #8b5cf6);
+      display: flex; align-items: center; justify-content: center;
+      font-weight: 800; color: #fff; font-size: 17px;
+      box-shadow: 0 0 16px var(--cyan-glow);
+    }
+    .brand-text { display: flex; flex-direction: column; }
+    .brand-title {
+      font-weight: 800; font-size: 15px; letter-spacing: -0.02em;
+      background: linear-gradient(135deg, #ffffff 40%, #94a3b8);
+      -webkit-background-clip: text; -webkit-text-fill-color: transparent;
+    }
+    .brand-sub { font-size: 9.5px; color: var(--cyan); font-weight: 600; letter-spacing: 0.04em; text-transform: uppercase; }
+
+    .header-center { display: flex; align-items: center; gap: 8px; }
+    .engine-badge {
+      display: flex; align-items: center; gap: 6px;
+      background: rgba(15, 23, 42, 0.8); border: 1px solid var(--border);
+      border-radius: 20px; padding: 4px 10px; font-size: 10.5px; color: #e2e8f0;
+    }
+    .pulse-dot {
+      width: 7px; height: 7px; border-radius: 50%;
+      background: var(--emerald); box-shadow: 0 0 8px var(--emerald);
+      animation: pulse 2s infinite;
+    }
+    @keyframes pulse { 0% { opacity: 1; } 50% { opacity: 0.4; } 100% { opacity: 1; } }
+
+    .header-tracks { display: flex; gap: 6px; }
+    .track-tag {
+      font-size: 10px; font-weight: 600; padding: 3px 9px; border-radius: 6px;
+      background: rgba(15, 23, 42, 0.7); border: 1px solid rgba(51, 65, 85, 0.7);
+      color: var(--text-muted); display: flex; align-items: center; gap: 5px;
+      transition: all 0.2s;
+    }
+    .track-tag.active {
+      border-color: var(--cyan); color: #38bdf8;
+      background: rgba(6, 182, 212, 0.12); box-shadow: 0 0 10px rgba(6, 182, 212, 0.15);
+    }
+
+    /* Main Container */
+    .main-layout { flex: 1; display: flex; overflow: hidden; position: relative; }
+
+    /* Left Control Deck */
+    .panel-left {
+      width: 480px; background: var(--panel-bg);
+      border-right: 1px solid var(--border);
+      display: flex; flex-direction: column;
+      z-index: 20; flex-shrink: 0; backdrop-filter: blur(20px);
+    }
+
+    /* Tabs Bar */
+    .tab-bar {
+      display: flex; border-bottom: 1px solid var(--border);
+      background: rgba(10, 16, 32, 0.95); padding: 4px 8px 0; gap: 4px;
+      flex-shrink: 0;
+    }
+    .tab-btn {
+      flex: 1; padding: 9px 8px; font-size: 11px; font-weight: 700;
+      color: var(--text-muted); background: transparent; border: none;
+      border-bottom: 2px solid transparent; cursor: pointer;
+      display: flex; align-items: center; justify-content: center; gap: 6px;
+      transition: all 0.15s; border-radius: 6px 6px 0 0;
+    }
+    .tab-btn:hover { color: var(--text-main); background: rgba(255, 255, 255, 0.03); }
+    .tab-btn.active {
+      color: #38bdf8; border-bottom-color: var(--cyan);
+      background: rgba(6, 182, 212, 0.08);
+    }
+
+    /* Tab Content Area */
+    .tab-content {
+      flex: 1; overflow-y: auto; padding: 14px;
+      display: flex; flex-direction: column; gap: 12px;
+    }
+
+    /* Cards */
+    .card {
+      background: var(--card-bg); border: 1px solid var(--border);
+      border-radius: 10px; padding: 12px 14px;
+      box-shadow: 0 4px 16px rgba(0, 0, 0, 0.25);
+    }
+    .card-title {
+      font-size: 10.5px; font-weight: 700; text-transform: uppercase;
+      letter-spacing: 0.08em; color: var(--text-muted); margin-bottom: 8px;
+      display: flex; align-items: center; justify-content: space-between;
+    }
+    .card-title span { display: flex; align-items: center; gap: 6px; }
+
+    /* Inputs & Selects */
+    .form-group { display: flex; flex-direction: column; gap: 6px; margin-bottom: 8px; }
+    .form-label { font-size: 10px; font-weight: 600; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.04em; }
+    select, input, textarea {
+      width: 100%; background: #020617; border: 1px solid rgba(51, 65, 85, 0.9);
+      color: var(--text-main); border-radius: 7px; padding: 8px 11px;
+      font-size: 11.5px; font-family: inherit; outline: none;
+      transition: all 0.15s;
+    }
+    select:focus, input:focus, textarea:focus {
+      border-color: var(--cyan); box-shadow: 0 0 10px var(--cyan-glow);
+    }
+
+    /* Preset Chips */
+    .chip-row { display: flex; gap: 5px; flex-wrap: wrap; margin-bottom: 8px; }
+    .preset-chip {
+      font-size: 10px; padding: 3px 8px; border-radius: 12px;
+      background: rgba(30, 41, 59, 0.6); border: 1px solid rgba(71, 85, 105, 0.6);
+      color: #94a3b8; cursor: pointer; transition: all 0.15s;
+      white-space: nowrap;
+    }
+    .preset-chip:hover {
+      background: rgba(6, 182, 212, 0.15); border-color: var(--cyan); color: #38bdf8;
+    }
+
+    /* Buttons */
+    .btn {
+      background: linear-gradient(135deg, #06b6d4, #2563eb);
+      color: #fff; font-weight: 700; font-size: 11.5px; border: none;
+      border-radius: 7px; padding: 9px 14px; cursor: pointer;
+      display: flex; align-items: center; justify-content: center; gap: 7px;
+      transition: all 0.15s; box-shadow: 0 4px 14px rgba(6, 182, 212, 0.3);
+      white-space: nowrap;
+    }
+    .btn:hover:not(:disabled) { filter: brightness(1.1); transform: translateY(-1px); box-shadow: 0 6px 18px rgba(6, 182, 212, 0.4); }
+    .btn:active:not(:disabled) { transform: translateY(0); }
+    .btn:disabled { opacity: 0.55; cursor: not-allowed; }
+    .btn-secondary {
+      background: #0f172a; color: #cbd5e1; box-shadow: none; border: 1px solid rgba(71, 85, 105, 0.8);
+    }
+    .btn-secondary:hover:not(:disabled) { background: #1e293b; color: #fff; }
+    .btn-amber {
+      background: linear-gradient(135deg, #f59e0b, #d97706); color: #000;
+      box-shadow: 0 4px 14px rgba(245, 158, 11, 0.3);
+    }
+    .btn-emerald {
+      background: linear-gradient(135deg, #10b981, #059669); color: #000;
+      box-shadow: 0 4px 14px rgba(16, 185, 129, 0.3);
+    }
+    .btn-row { display: flex; gap: 8px; }
+
+    /* Verdict Banner */
+    .verdict-card {
+      background: linear-gradient(135deg, rgba(16, 185, 129, 0.12), rgba(6, 182, 212, 0.08));
+      border: 1px solid rgba(16, 185, 129, 0.4);
+      border-radius: 10px; padding: 12px 14px;
+    }
+    .verdict-header {
+      display: flex; align-items: center; justify-content: space-between; margin-bottom: 6px;
+    }
+    .verdict-tag {
+      font-size: 10px; font-weight: 800; text-transform: uppercase; letter-spacing: 0.06em;
+      color: #34d399; display: flex; align-items: center; gap: 5px;
+    }
+    .verdict-body { font-size: 11.5px; line-height: 1.55; color: #e2e8f0; }
+
+    /* Impact Metrics Cards */
+    .impact-stat-grid {
+      display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-top: 8px;
+    }
+    .impact-stat-card {
+      background: #020617; border: 1px solid rgba(51, 65, 85, 0.8);
+      border-radius: 8px; padding: 8px 10px;
+    }
+    .impact-stat-val {
+      font-size: 15px; font-weight: 800; font-family: 'JetBrains Mono', monospace;
+      color: var(--rose);
+    }
+    .impact-stat-label { font-size: 9px; text-transform: uppercase; color: var(--text-muted); font-weight: 600; margin-top: 2px; }
+
+    /* Hop Stepper */
+    .stepper-nav {
+      display: flex; gap: 4px; margin-bottom: 8px; background: #020617;
+      padding: 4px; border-radius: 8px; border: 1px solid var(--border);
+    }
+    .step-pill {
+      flex: 1; padding: 5px 4px; font-size: 9.5px; font-weight: 700;
+      text-align: center; border-radius: 5px; cursor: pointer; color: var(--text-muted);
+      transition: all 0.15s;
+    }
+    .step-pill.active { background: #1e293b; color: #38bdf8; border: 1px solid var(--cyan); }
+    .step-pill.done { color: #34d399; }
+
+    /* Trace Hop Card */
+    .hop-detail-card {
+      background: #090e21; border: 1px solid var(--border);
+      border-radius: 9px; padding: 12px;
+    }
+    .hop-meta-row {
+      display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;
+    }
+    .hop-tool-badge {
+      font-size: 10px; font-weight: 700; padding: 3px 8px; border-radius: 5px;
+      background: rgba(6, 182, 212, 0.15); color: var(--cyan); border: 1px solid rgba(6, 182, 212, 0.35);
+      font-family: 'JetBrains Mono', monospace;
+    }
+    .hop-agent-badge {
+      font-size: 10px; font-weight: 700; color: var(--amber);
+      font-family: 'JetBrains Mono', monospace;
+    }
+
+    /* Cypher Box */
+    .cypher-drawer { margin-top: 8px; }
+    .cypher-toggle-btn {
+      background: transparent; border: none; color: #38bdf8; font-size: 10px;
+      font-weight: 700; cursor: pointer; display: flex; align-items: center; gap: 5px;
+      padding: 2px 0;
+    }
+    .cypher-box {
+      background: #020617; border: 1px solid rgba(51, 65, 85, 0.9); border-radius: 6px;
+      padding: 8px 10px; font-family: 'JetBrains Mono', monospace; font-size: 10px;
+      color: #fbbf24; overflow-x: auto; margin-top: 5px; white-space: pre-wrap; word-break: break-word;
+      line-height: 1.45; position: relative;
+    }
+    .copy-cypher-btn {
+      position: absolute; top: 6px; right: 6px; background: rgba(30, 41, 59, 0.8);
+      border: 1px solid #475569; color: #cbd5e1; font-size: 9px; padding: 2px 6px;
+      border-radius: 4px; cursor: pointer;
+    }
+    .copy-cypher-btn:hover { background: #334155; color: #fff; }
+
+    /* Graph Canvas Area */
+    .panel-right { flex: 1; position: relative; background: #020617; overflow: hidden; }
+
+    /* Floating Canvas Controls HUD */
+    .canvas-hud {
+      position: absolute; top: 12px; right: 12px; z-index: 25;
+      display: flex; gap: 6px;
+    }
+    .hud-btn {
+      background: rgba(15, 23, 42, 0.9); border: 1px solid var(--border);
+      color: var(--text-sub); border-radius: 7px; padding: 6px 10px;
+      font-size: 11px; font-weight: 600; cursor: pointer; backdrop-filter: blur(12px);
+      display: flex; align-items: center; gap: 5px; transition: all 0.15s;
+    }
+    .hud-btn:hover { background: #1e293b; color: #fff; border-color: var(--cyan); }
+    .hud-btn.active { background: rgba(6, 182, 212, 0.2); border-color: var(--cyan); color: #38bdf8; }
+
+    /* Floating Legend */
+    .floating-legend {
+      position: absolute; bottom: 14px; left: 14px; z-index: 25;
+      background: rgba(11, 19, 41, 0.95); border: 1px solid var(--border);
+      border-radius: 9px; padding: 10px 14px; backdrop-filter: blur(14px);
+      width: 295px; box-shadow: 0 8px 24px rgba(0, 0, 0, 0.45);
+      transition: all 0.2s ease;
+    }
+    .legend-header {
+      font-size: 9.5px; font-weight: 700; text-transform: uppercase;
+      letter-spacing: 0.08em; color: var(--amber); margin-bottom: 6px;
+      display: flex; justify-content: space-between; align-items: center;
+    }
+    .legend-grid {
+      display: grid; grid-template-columns: 1fr 1fr; gap: 4px 8px; font-size: 10px;
+    }
+    .legend-item {
+      display: flex; align-items: center; gap: 6px; cursor: pointer;
+      padding: 3px 5px; border-radius: 4px; transition: all 0.15s;
+    }
+    .legend-item:hover { background: rgba(255, 255, 255, 0.08); }
+    .legend-item.active {
+      background: rgba(6, 182, 212, 0.2); border: 1px solid rgba(6, 182, 212, 0.6);
+      color: #38bdf8;
+    }
+    .legend-dot { width: 8.5px; height: 8.5px; border-radius: 50%; flex-shrink: 0; }
+
+    /* Graph Stats HUD Bottom */
+    .graph-telemetry {
+      position: absolute; bottom: 14px; right: 14px; z-index: 25;
+      background: rgba(11, 19, 41, 0.92); border: 1px solid var(--border);
+      border-radius: 9px; padding: 6px 12px; backdrop-filter: blur(14px);
+      display: flex; gap: 14px; align-items: center;
+    }
+    .stat-pill { display: flex; align-items: baseline; gap: 4px; }
+    .stat-val { font-size: 14px; font-weight: 800; font-family: 'JetBrains Mono', monospace; color: var(--cyan); }
+    .stat-lbl { font-size: 9px; text-transform: uppercase; color: var(--text-muted); font-weight: 600; }
+
+    /* Node Inspector Drawer */
+    .node-drawer {
+      position: absolute; top: 12px; right: 12px; width: 330px;
+      background: rgba(11, 19, 41, 0.96); border: 1px solid rgba(51, 65, 85, 0.9);
+      border-radius: 10px; padding: 14px; z-index: 35; backdrop-filter: blur(20px);
+      box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5);
+      animation: slideIn 0.2s ease;
+    }
+    @keyframes slideIn { from { opacity: 0; transform: translateX(20px); } to { opacity: 1; transform: translateX(0); } }
+    .drawer-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; }
+    .drawer-type {
+      font-size: 9.5px; font-weight: 800; padding: 2px 7px; border-radius: 4px;
+      text-transform: uppercase;
+    }
+    .drawer-close { background: none; border: none; color: #94a3b8; cursor: pointer; font-size: 14px; }
+    .drawer-close:hover { color: #fff; }
+    .drawer-title { font-size: 13px; font-weight: 800; color: #fff; margin-bottom: 8px; word-break: break-word; }
+    .props-table { width: 100%; border-collapse: collapse; font-size: 10.5px; margin-bottom: 10px; }
+    .props-table td { padding: 4px 6px; border-bottom: 1px solid rgba(51, 65, 85, 0.4); }
+    .props-key { color: var(--text-muted); font-family: 'JetBrains Mono', monospace; width: 35%; }
+    .props-val { color: #e2e8f0; font-family: 'JetBrains Mono', monospace; word-break: break-all; }
+
+    /* Toast */
+    .toast {
+      position: fixed; bottom: 24px; left: 50%; transform: translateX(-50%);
+      background: #10b981; color: #020617; font-weight: 800; font-size: 12px;
+      padding: 9px 18px; border-radius: 30px; box-shadow: 0 6px 24px rgba(16, 185, 129, 0.4);
+      z-index: 100; animation: fadeUp 0.25s ease; cursor: pointer; display: flex; align-items: center; gap: 7px;
+    }
+    @keyframes fadeUp { from { opacity: 0; transform: translate(-50%, 15px); } to { opacity: 1; transform: translate(-50%, 0); } }
+  </style>
+</head>
+<body>
+  <div id="root"></div>
+
+  <script type="text/babel">
+    const { useState, useEffect, useRef, useCallback, useMemo } = React;
+
+    const COLOR_MAP = {
+      Microservice: "#38bdf8",
+      CustomerSLA: "#f43f5e",
+      CodeFunction: "#c084fc",
+      ArchitectureDecision: "#fbbf24",
+      RFC_Document: "#34d399",
+      Incident: "#fb7185",
+      Engineer: "#eab308",
+      Team: "#818cf8",
+      JiraTicket: "#2dd4bf",
+      Agent: "#22c55e",
+      SemanticFact: "#06b6d4",
+      ProceduralStep: "#f59e0b",
+      EpisodicMemory: "#e879f9",
+    };
+
+    const GLYPH_MAP = {
+      Microservice: "⚙",
+      CustomerSLA: "💎",
+      CodeFunction: "λ",
+      ArchitectureDecision: "💡",
+      RFC_Document: "📜",
+      Incident: "⚠️",
+      Engineer: "👤",
+      Team: "👥",
+      JiraTicket: "🎫",
+      Agent: "🤖",
+      SemanticFact: "🧠",
+      ProceduralStep: "📋",
+      EpisodicMemory: "⏳",
+    };
+
+    const DISPLAY_NAMES = {
+      Microservice: "Microservice",
+      CustomerSLA: "Customer SLA",
+      CodeFunction: "Code Function",
+      ArchitectureDecision: "Arch Decision",
+      RFC_Document: "RFC Document",
+      Incident: "Incident",
+      Engineer: "Engineer",
+      Team: "Team",
+      JiraTicket: "Jira Ticket",
+      Agent: "Agent",
+      SemanticFact: "Semantic Fact",
+      ProceduralStep: "Procedural Step",
+      EpisodicMemory: "Episodic Memory",
+    };
+
+    function Toast({ msg, onClose }) {
+      return (
+        <div className="toast" onClick={onClose}>
+          <span>✓</span>
+          <span>{msg}</span>
+        </div>
+      );
+    }
+
+    function CypherInspector({ queries }) {
+      const [isOpen, setIsOpen] = useState(false);
+      const [copiedIdx, setCopiedIdx] = useState(null);
+
+      if (!queries || queries.length === 0) return null;
+
+      const handleCopy = (q, idx, e) => {
+        e.stopPropagation();
+        navigator.clipboard.writeText(q);
+        setCopiedIdx(idx);
+        setTimeout(() => setCopiedIdx(null), 1800);
+      };
+
+      return (
+        <div className="cypher-drawer">
+          <button className="cypher-toggle-btn" onClick={() => setIsOpen(!isOpen)}>
+            <span>{isOpen ? "▼" : "▶"}</span>
+            <span>{isOpen ? "Hide Executed FalkorDB Cypher" : `Inspect ${queries.length} Executed Cypher ${queries.length === 1 ? "Query" : "Queries"}`}</span>
+          </button>
+          {isOpen && (
+            <div style={{ display: "flex", flexDirection: "column", gap: 6, marginTop: 4 }}>
+              {queries.map((q, i) => (
+                <div key={i} className="cypher-box">
+                  <button className="copy-cypher-btn" onClick={(e) => handleCopy(q, i, e)}>
+                    {copiedIdx === i ? "Copied!" : "Copy"}
+                  </button>
+                  {q}
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      );
+    }
+
+    function ForceGraphComponent({ graphData, scopeFilter, onSelectService, focusService, typeHighlight }) {
+      const fgRef = useRef();
+      const containerRef = useRef();
+      // Initial dimensions from window
+      const [dims, setDims] = useState({
+        width: typeof window !== "undefined" ? window.innerWidth - 480 : 960,
+        height: typeof window !== "undefined" ? window.innerHeight - 52 : 700
+      });
+      const [selectedNode, setSelectedNode] = useState(null);
+      const [physicsFrozen, setPhysicsFrozen] = useState(false);
+
+      // Handle Resize
+      useEffect(() => {
+        const handleResize = () => {
+          if (containerRef.current) {
+            setDims({
+              width: containerRef.current.clientWidth,
+              height: containerRef.current.clientHeight,
+            });
+          }
+        };
+        handleResize();
+        window.addEventListener("resize", handleResize);
+        return () => window.removeEventListener("resize", handleResize);
+      }, []);
+
+      // Filter graph data by selected scope
+      const filteredData = useMemo(() => {
+        if (!graphData || !graphData.nodes) return { nodes: [], links: [] };
+        if (scopeFilter === "all") return graphData;
+        if (scopeFilter === "path") {
+          const pathNodes = graphData.nodes.filter(n => n.highlighted);
+          const pathNodeIds = new Set(pathNodes.map(n => n.id));
+          const pathLinks = (graphData.links || []).filter(l => {
+            const sId = typeof l.source === "object" ? l.source.id : l.source;
+            const tId = typeof l.target === "object" ? l.target.id : l.target;
+            return pathNodeIds.has(sId) && pathNodeIds.has(tId);
+          });
+          return { nodes: pathNodes, links: pathLinks };
+        }
+        return {
+          nodes: graphData.nodes.filter(n => n.scope === scopeFilter),
+          links: (graphData.links || []).filter(l => l.scope === scopeFilter),
+        };
+      }, [graphData, scopeFilter]);
+
+      // Configure D3 collision physics to completely prevent node overlap
+      useEffect(() => {
+        if (fgRef.current && window.d3) {
+          fgRef.current.d3Force('charge', window.d3.forceManyBody().strength(-300));
+          fgRef.current.d3Force('collide', window.d3.forceCollide().radius(node => (node.highlighted ? 32 : 22)));
+          fgRef.current.d3Force('link', window.d3.forceLink().id(d => d.id).distance(75));
+        }
+      }, [filteredData]);
+
+      // Auto fit on load with balanced zoom
+      useEffect(() => {
+        const timer = setTimeout(() => {
+          if (fgRef.current) {
+            fgRef.current.zoomToFit(600, 70);
+          }
+        }, 650);
+        return () => clearTimeout(timer);
+      }, [filteredData]);
+
+      const handleNodeClick = useCallback((node) => {
+        setSelectedNode(node);
+        if (fgRef.current) {
+          fgRef.current.centerAt(node.x, node.y, 400);
+          fgRef.current.zoom(1.8, 400);
+        }
+      }, []);
+
+      const zoomIn = () => { if (fgRef.current) fgRef.current.zoom(fgRef.current.zoom() * 1.35, 300); };
+      const zoomOut = () => { if (fgRef.current) fgRef.current.zoom(fgRef.current.zoom() / 1.35, 300); };
+      const zoomFit = () => { if (fgRef.current) fgRef.current.zoomToFit(500, 70); };
+
+      const focusHighlight = () => {
+        if (!fgRef.current || !filteredData.nodes) return;
+        const target = filteredData.nodes.find(n => n.props?.name === focusService || n.highlighted);
+        if (target && target.x !== undefined && target.y !== undefined) {
+          fgRef.current.centerAt(target.x, target.y, 500);
+          fgRef.current.zoom(1.8, 500);
+        } else {
+          fgRef.current.zoomToFit(500, 70);
+        }
+      };
+
+      const togglePhysics = () => {
+        if (!fgRef.current) return;
+        if (physicsFrozen) {
+          fgRef.current.resumeAnimation();
+          setPhysicsFrozen(false);
+        } else {
+          fgRef.current.pauseAnimation();
+          setPhysicsFrozen(true);
+        }
+      };
+
+      return (
+        <div ref={containerRef} style={{ width: "100%", height: "100%", position: "relative" }}>
+          {/* Floating Canvas Controls HUD */}
+          <div className="canvas-hud">
+            <button className="hud-btn" onClick={zoomIn} title="Zoom In">＋</button>
+            <button className="hud-btn" onClick={zoomOut} title="Zoom Out">－</button>
+            <button className="hud-btn" onClick={zoomFit} title="Fit to Viewport">⛶ Fit</button>
+            <button className="hud-btn" onClick={focusHighlight} title="Center Active Incident">🎯 Focus</button>
+            <button className={`hud-btn ${physicsFrozen ? "active" : ""}`} onClick={togglePhysics} title="Pause Physics">
+              {physicsFrozen ? "▶ Resume" : "⏸ Freeze"}
+            </button>
+          </div>
+
+          <ForceGraph2D
+            ref={fgRef}
+            width={dims.width}
+            height={dims.height}
+            graphData={filteredData}
+            backgroundColor="#020617"
+            onNodeClick={handleNodeClick}
+            nodeLabel={n => `[${n.label}] ${n.title}`}
+            nodeRelSize={5}
+            nodeVal={n => n.highlighted ? 10 : (n.scope === "brain" ? 6 : 4)}
+            linkWidth={l => l.highlighted ? 2.5 : 1}
+            linkDirectionalArrowLength={4}
+            linkDirectionalArrowRelPos={1}
+            linkDirectionalParticles={l => l.highlighted ? 3 : 1}
+            linkDirectionalParticleSpeed={l => l.highlighted ? 0.01 : 0.003}
+            linkDirectionalParticleWidth={l => l.highlighted ? 3 : 1.5}
+            linkColor={l => l.highlighted ? "#fbbf24" : (l.scope === "memory" ? "#06b6d4" : "#334155")}
+            nodeCanvasObjectMode={() => "after"}
+            nodeCanvasObject={(node, ctx, globalScale) => {
+              const label = node.title || "";
+              const color = COLOR_MAP[node.label] || "#94a3b8";
+              const isHi = node.highlighted;
+              const isTypeMatch = typeHighlight ? node.label === typeHighlight : true;
+
+              ctx.save();
+              ctx.globalAlpha = isTypeMatch ? 1.0 : 0.22;
+
+              // Glowing Aura for Active Reasoning Path Nodes or Filtered Type
+              if (isHi || (typeHighlight && node.label === typeHighlight)) {
+                ctx.beginPath();
+                ctx.arc(node.x, node.y, 11, 0, 2 * Math.PI, false);
+                ctx.fillStyle = isHi ? "rgba(251, 191, 36, 0.25)" : "rgba(6, 182, 212, 0.25)";
+                ctx.fill();
+                ctx.strokeStyle = isHi ? "#fbbf24" : "#06b6d4";
+                ctx.lineWidth = 1.5;
+                ctx.stroke();
+              }
+
+              // Draw Inner Glyph Icon
+              const glyph = GLYPH_MAP[node.label] || "•";
+              const iconSize = Math.max(7, Math.min(11, 10 / globalScale));
+              ctx.font = `700 ${iconSize}px 'Plus Jakarta Sans', sans-serif`;
+              ctx.fillStyle = isHi ? "#000" : "#fff";
+              ctx.textAlign = "center";
+              ctx.textBaseline = "middle";
+              ctx.fillText(glyph, node.x, node.y);
+
+              // Frosted Capsule Label Badge with scale-normalized typography
+              if (globalScale > 0.55 || isHi || node.label === "Microservice") {
+                const screenPx = isHi ? 10.5 : 9.5;
+                const fontSize = screenPx / globalScale;
+                ctx.font = `${isHi ? "700" : "500"} ${fontSize}px 'Plus Jakarta Sans', sans-serif`;
+                
+                const shortLabel = label.length > 20 ? label.slice(0, 18) + "…" : label;
+                const textWidth = ctx.measureText(shortLabel).width;
+                const pillPaddingX = 5 / globalScale;
+                const pillPaddingY = 3 / globalScale;
+                const pillWidth = textWidth + pillPaddingX * 2;
+                const pillHeight = fontSize + pillPaddingY * 2;
+                const pillX = node.x - pillWidth / 2;
+                const pillY = node.y + (isHi ? 12 : 9);
+
+                // Capsule Background
+                ctx.fillStyle = isHi ? "rgba(15, 23, 42, 0.92)" : "rgba(8, 14, 30, 0.85)";
+                ctx.strokeStyle = isHi ? "rgba(251, 191, 36, 0.75)" : "rgba(51, 65, 85, 0.7)";
+                ctx.lineWidth = 1 / globalScale;
+                
+                // Draw rounded rectangle
+                const radius = 3 / globalScale;
+                ctx.beginPath();
+                ctx.moveTo(pillX + radius, pillY);
+                ctx.lineTo(pillX + pillWidth - radius, pillY);
+                ctx.quadraticCurveTo(pillX + pillWidth, pillY, pillX + pillWidth, pillY + radius);
+                ctx.lineTo(pillX + pillWidth, pillY + pillHeight - radius);
+                ctx.quadraticCurveTo(pillX + pillWidth, pillY + pillHeight, pillX + pillWidth - radius, pillY + pillHeight);
+                ctx.lineTo(pillX + radius, pillY + pillHeight);
+                ctx.quadraticCurveTo(pillX, pillY + pillHeight, pillX, pillY + pillHeight - radius);
+                ctx.lineTo(pillX, pillY + radius);
+                ctx.quadraticCurveTo(pillX, pillY, pillX + radius, pillY);
+                ctx.closePath();
+                ctx.fill();
+                ctx.stroke();
+
+                // Draw Text inside capsule
+                ctx.fillStyle = isHi ? "#fde047" : "#e2e8f0";
+                ctx.textAlign = "center";
+                ctx.textBaseline = "middle";
+                ctx.fillText(shortLabel, node.x, pillY + pillHeight / 2);
+              }
+              ctx.restore();
+            }}
+          />
+
+          {/* Node Inspector Slide-over Drawer */}
+          {selectedNode && (
+            <div className="node-drawer">
+              <div className="drawer-header">
+                <span
+                  className="drawer-type"
+                  style={{
+                    background: COLOR_MAP[selectedNode.label] || "#64748b",
+                    color: "#020617"
+                  }}
+                >
+                  :{selectedNode.label} {selectedNode.highlighted ? "★ IN REASONING PATH" : ""}
+                </span>
+                <button className="drawer-close" onClick={() => setSelectedNode(null)}>✕</button>
+              </div>
+
+              <div className="drawer-title">{selectedNode.title}</div>
+
+              <table className="props-table">
+                <tbody>
+                  <tr>
+                    <td className="props-key">Scope</td>
+                    <td className="props-val">{selectedNode.scope === "brain" ? "🧠 Company Brain" : "🤖 Tenant Memory"}</td>
+                  </tr>
+                  {selectedNode.props && Object.entries(selectedNode.props).map(([k, v]) => (
+                    <tr key={k}>
+                      <td className="props-key">{k}</td>
+                      <td className="props-val">{typeof v === "object" ? JSON.stringify(v) : String(v)}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+
+              {selectedNode.label === "Microservice" && selectedNode.props?.name && (
+                <button
+                  className="btn btn-amber"
+                  style={{ width: "100%", marginTop: 6 }}
+                  onClick={() => {
+                    onSelectService(selectedNode.props.name);
+                    setSelectedNode(null);
+                  }}
+                >
+                  ▶ Triage {selectedNode.props.name}
+                </button>
+              )}
+            </div>
+          )}
+        </div>
+      );
+    }
+
+    function App() {
+      const [activeTab, setActiveTab] = useState("triage");
+      const [service, setService] = useState("auth-token-svc");
+      const [tenant, setTenant] = useState("acme");
+      const [query, setQuery] = useState("Why is auth-token-svc spiking to 420ms, what breaks if it fails, and what verified remediation should execute?");
+      const [newFact, setNewFact] = useState("Emergency SRE Policy: Raise pool_max to 1000 with Redis Cluster failover enabled.");
+      const [data, setData] = useState(null);
+      const [loading, setLoading] = useState(false);
+      const [toast, setToast] = useState("");
+      const [error, setError] = useState("");
+      const [scopeFilter, setScope] = useState("all");
+      const [selectedHopIdx, setSelectedHopIdx] = useState(0);
+      const [benchmarkResult, setBenchmarkResult] = useState(null);
+      const [typeHighlight, setTypeHighlight] = useState(null);
+      const [legendOpen, setLegendOpen] = useState(true);
+
+      const runInvestigation = useCallback(async (svcOverride, tenantOverride, queryOverride) => {
+        const targetSvc = svcOverride ?? service;
+        const targetTenant = tenantOverride ?? tenant;
+        const targetQuery = queryOverride ?? query;
+        setService(targetSvc);
+        setTenant(targetTenant);
+        setLoading(true);
+        setError("");
+        try {
+          const res = await fetch("/api/investigate", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ tenant_id: targetTenant, service_name: targetSvc, query: targetQuery }),
+          });
+          if (!res.ok) throw new Error(`HTTP ${res.status}`);
+          const json = await res.json();
+          setData(json);
+        } catch (err) {
+          setError(err.message);
+        } finally {
+          setLoading(false);
+        }
+      }, [service, tenant, query]);
+
+      useEffect(() => {
+        runInvestigation("auth-token-svc", "acme", query);
+      }, []);
+
+      const mutateMemory = async () => {
+        setLoading(true);
+        try {
+          const res = await fetch("/api/memory/contradict", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ tenant_id: tenant, entity: service, new_statement: newFact }),
+          });
+          const json = await res.json();
+          setToast(json.message);
+          setTimeout(() => setToast(""), 4500);
+          await runInvestigation(service, tenant, query);
+        } catch (err) {
+          setError(err.message);
+        } finally {
+          setLoading(false);
+        }
+      };
+
+      const ingestAst = async () => {
+        setLoading(true);
+        try {
+          const res = await fetch("/api/ingest/live-ast", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ file_path: "" }),
+          });
+          const json = await res.json();
+          setToast(json.message);
+          setTimeout(() => setToast(""), 4500);
+          await runInvestigation(service, tenant, query);
+        } catch (err) {
+          setError(err.message);
+        } finally {
+          setLoading(false);
+        }
+      };
+
+      const runBenchmark = async () => {
+        setLoading(true);
+        try {
+          const res = await fetch(`/api/memory/concurrency-benchmark?tenant_id=${tenant}&operations=50`, { method: "POST" });
+          const json = await res.json();
+          setBenchmarkResult(json);
+          setToast(json.message);
+          setTimeout(() => setToast(""), 5000);
+          await runInvestigation(service, tenant, query);
+        } catch (err) {
+          setError(err.message);
+        } finally {
+          setLoading(false);
+        }
+      };
+
+      const nodeCount = data?.subgraph?.nodes?.length || 0;
+      const edgeCount = data?.subgraph?.links?.length || 0;
+      const pathNodeCount = (data?.subgraph?.nodes || []).filter(n => n.highlighted).length;
+      const traces = data?.mcp_execution_trace || [];
+      const currentHop = traces[selectedHopIdx] || traces[0];
+
+      // Extract Blast Radius KPIs from Hop 2
+      const hop2 = traces.find(t => t.tool === "mcp_trace_multihop_blast_radius");
+      const totalArrAtRisk = hop2?.total_arr_at_risk_usd || 3570000;
+      const impactedCustomers = hop2?.impacts || [];
+
+      // Extract facts and runbook from Hop 5
+      const hop5 = traces.find(t => t.tool === "mcp_recall_and_commit_bitemporal_memory");
+      const bitemporalFacts = hop5?.bitemporal_facts || [];
+      const proceduralRunbook = hop5?.procedural_runbook || [];
+      const recentEpisodes = hop5?.recent_episodes || [];
+
+      return (
+        <div style={{ height: "100%", display: "flex", flexDirection: "column" }}>
+          {/* Header */}
+          <header>
+            <div className="brand-section">
+              <div className="brand-logo">⬡</div>
+              <div className="brand-text">
+                <span className="brand-title">AegisGraph</span>
+                <span className="brand-sub">Autonomous Multi-Agent Context Engine</span>
+              </div>
+            </div>
+
+            <div className="header-center">
+              <div className="engine-badge">
+                <span className="pulse-dot" />
+                <span>FalkorDB v1.0.0 Connected · Port 6379</span>
+              </div>
+              <div className="header-tracks">
+                <div className="track-tag active">🕵️ Track 1: MCP &amp; Cypher</div>
+                <div className="track-tag active">🤖 Track 2: Bi-Temporal Memory</div>
+                <div className="track-tag active">🧠 Track 3: Company Brain</div>
+              </div>
+            </div>
+
+            <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+              <select
+                style={{ width: "auto", fontSize: 11, padding: "5px 10px", background: "#0b1226" }}
+                value={tenant}
+                onChange={e => runInvestigation(service, e.target.value, query)}
+              >
+                <option value="acme">🏢 Tenant: Acme Corp</option>
+                <option value="globex">🏢 Tenant: Globex Corp</option>
+                <option value="umbrella">🏢 Tenant: Umbrella Corp</option>
+              </select>
+            </div>
+          </header>
+
+          {/* Main Layout */}
+          <div className="main-layout">
+            {/* Left Control Deck with Tabs */}
+            <div className="panel-left">
+              {/* Tab Bar */}
+              <div className="tab-bar">
+                <button
+                  className={`tab-btn ${activeTab === "triage" ? "active" : ""}`}
+                  onClick={() => setActiveTab("triage")}
+                >
+                  <span>🚨</span>
+                  <span>Triage &amp; Impact</span>
+                </button>
+                <button
+                  className={`tab-btn ${activeTab === "trace" ? "active" : ""}`}
+                  onClick={() => setActiveTab("trace")}
+                >
+                  <span>⚡</span>
+                  <span>MCP Trace ({traces.length})</span>
+                </button>
+                <button
+                  className={`tab-btn ${activeTab === "memory" ? "active" : ""}`}
+                  onClick={() => setActiveTab("memory")}
+                >
+                  <span>🧠</span>
+                  <span>Memory &amp; Runbook</span>
+                </button>
+                <button
+                  className={`tab-btn ${activeTab === "benchmark" ? "active" : ""}`}
+                  onClick={() => setActiveTab("benchmark")}
+                >
+                  <span>🧪</span>
+                  <span>Benchmark Lab</span>
+                </button>
+              </div>
+
+              {/* Tab 1: Incident Triage & Impact Radar */}
+              {activeTab === "triage" && (
+                <div className="tab-content">
+                  <div className="card">
+                    <div className="card-title">
+                      <span>Target Service Incident</span>
+                      {loading && <span style={{ color: "var(--cyan)", fontSize: 10 }}>● TRIAGING...</span>}
+                    </div>
+
+                    <div className="form-group">
+                      <select
+                        value={service}
+                        onChange={e => runInvestigation(e.target.value, tenant, query)}
+                      >
+                        <option value="auth-token-svc">⚙️ auth-token-svc (Tier-0, Go, 420ms)</option>
+                        <option value="api-gateway">⚙️ api-gateway (Tier-0, Rust, 18ms)</option>
+                        <option value="checkout-orchestrator">⚙️ checkout-orchestrator (Tier-1, Python, 890ms)</option>
+                        <option value="unknown-shadow-svc">❓ unknown-shadow-svc (Unindexed Service)</option>
+                      </select>
+                    </div>
+
+                    <div className="chip-row">
+                      <span className="preset-chip" onClick={() => {
+                        const q = "Why is auth-token-svc spiking to 420ms, what breaks if it fails, and what verified remediation should execute?";
+                        setQuery(q);
+                        runInvestigation("auth-token-svc", tenant, q);
+                      }}>🔥 auth-token-svc spike</span>
+
+                      <span className="preset-chip" onClick={() => {
+                        const q = "What is the blast radius and ARR penalty if api-gateway fails?";
+                        setQuery(q);
+                        runInvestigation("api-gateway", tenant, q);
+                      }}>💸 api-gateway SLA</span>
+
+                      <span className="preset-chip" onClick={() => {
+                        const q = "Why is unknown-shadow-svc failing and what is the remediation?";
+                        setQuery(q);
+                        runInvestigation("unknown-shadow-svc", tenant, q);
+                      }}>🛡️ Test Abstention</span>
+                    </div>
+
+                    <div className="form-group">
+                      <input
+                        value={query}
+                        onChange={e => setQuery(e.target.value)}
+                        placeholder="Ask Multi-Agent Swarm a question..."
+                      />
+                    </div>
+
+                    <div className="btn-row">
+                      <button
+                        className="btn"
+                        style={{ flex: 1 }}
+                        onClick={() => runInvestigation(service, tenant, query)}
+                        disabled={loading}
+                      >
+                        <span>▶</span>
+                        <span>Run Autonomous Triage</span>
+                      </button>
+                      <button
+                        className="btn btn-secondary"
+                        onClick={() => {
+                          const shadowQuery = "Why is unknown-shadow-svc failing and what is the remediation?";
+                          setQuery(shadowQuery);
+                          runInvestigation("unknown-shadow-svc", tenant, shadowQuery);
+                        }}
+                        disabled={loading}
+                      >
+                        <span>🛡️</span>
+                        <span>Test Abstention</span>
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* SRE Verdict Card */}
+                  {data?.autonomous_decision && (
+                    <div className="verdict-card">
+                      <div className="verdict-header">
+                        <div className="verdict-tag">
+                          <span>⚡</span>
+                          <span>Graph-Grounded SRE Action</span>
+                        </div>
+                        <span style={{ fontSize: 10, color: "#fbbf24", fontFamily: "JetBrains Mono, monospace" }}>
+                          {pathNodeCount} path nodes cited
+                        </span>
+                      </div>
+                      <div className="verdict-body">{data.autonomous_decision}</div>
+                    </div>
+                  )}
+
+                  {/* Financial Blast Radius & ARR at Risk */}
+                  <div className="card">
+                    <div className="card-title">
+                      <span>Financial Impact &amp; SLA Blast Radius</span>
+                      <span style={{ color: "var(--rose)", fontWeight: 800 }}>CRITICAL TIER-0</span>
+                    </div>
+
+                    <div className="impact-stat-grid">
+                      <div className="impact-stat-card">
+                        <div className="impact-stat-val">${(totalArrAtRisk || 0).toLocaleString()}</div>
+                        <div className="impact-stat-label">Total ARR at Risk (USD)</div>
+                      </div>
+                      <div className="impact-stat-card">
+                        <div className="impact-stat-val" style={{ color: "var(--amber)" }}>$7,100 /min</div>
+                        <div className="impact-stat-label">SLA Breach Penalty</div>
+                      </div>
+                    </div>
+
+                    <div style={{ marginTop: 10, display: "flex", flexDirection: "column", gap: 6 }}>
+                      {impactedCustomers.map((imp, i) => (
+                        <div
+                          key={i}
+                          style={{
+                            background: "#020617", border: "1px solid rgba(51, 65, 85, 0.7)",
+                            borderRadius: 6, padding: "8px 10px", fontSize: 11
+                          }}
+                        >
+                          <div style={{ display: "flex", justifyContent: "space-between", fontWeight: 700 }}>
+                            <span style={{ color: "#f8fafc" }}>{imp.customer}</span>
+                            <span style={{ color: "var(--rose)", fontFamily: "JetBrains Mono, monospace" }}>
+                              ${imp.arr_at_risk_usd?.toLocaleString()} ARR
+                            </span>
+                          </div>
+                          <div style={{ fontSize: 10, color: "var(--text-muted)", marginTop: 2 }}>
+                            Penalty: <span style={{ color: "var(--amber)" }}>${imp.penalty_per_min_usd}/min</span>
+                          </div>
+                          {imp.bottleneck_function && (
+                            <div style={{ fontSize: 9.5, color: "#c084fc", fontFamily: "JetBrains Mono, monospace", marginTop: 4 }}>
+                              ↳ AST Bottleneck: {imp.entry_function} ➔ {imp.bottleneck_function} ({imp.file_path}, cc={imp.cyclomatic_complexity})
+                            </div>
+                          )}
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* Tab 2: Multi-Agent MCP Execution Trace */}
+              {activeTab === "trace" && (
+                <div className="tab-content">
+                  <div className="card-title" style={{ padding: "0 2px" }}>
+                    <span>5-Hop Reasoning Execution Stepper</span>
+                    <span style={{ color: "var(--cyan)", fontFamily: "JetBrains Mono, monospace", fontSize: 10 }}>Track 1 &amp; 3</span>
+                  </div>
+
+                  <div className="stepper-nav">
+                    {traces.map((t, idx) => (
+                      <div
+                        key={idx}
+                        className={`step-pill ${selectedHopIdx === idx ? "active" : "done"}`}
+                        onClick={() => setSelectedHopIdx(idx)}
+                      >
+                        HOP {idx + 1}
+                      </div>
+                    ))}
+                  </div>
+
+                  {currentHop && (
+                    <div className="hop-detail-card">
+                      <div className="hop-meta-row">
+                        <span className="hop-tool-badge">{currentHop.tool}</span>
+                        <span className="hop-agent-badge">{currentHop.agent}</span>
+                      </div>
+
+                      {/* PageRank Results */}
+                      {currentHop.pagerank && (
+                        <div style={{ marginBottom: 10 }}>
+                          <div style={{ fontSize: 10, color: "var(--text-muted)", textTransform: "uppercase", fontWeight: 700, marginBottom: 4 }}>
+                            FalkorDB algo.pageRank Centrality Scores:
+                          </div>
+                          <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+                            {currentHop.pagerank.map((p, i) => (
+                              <div
+                                key={i}
+                                style={{
+                                  display: "flex", justifyContent: "space-between", background: "#020617",
+                                  padding: "4px 8px", borderRadius: 4, fontSize: 11
+                                }}
+                              >
+                                <span style={{ color: "#38bdf8", fontWeight: 600 }}>{p.service}</span>
+                                <span style={{ color: "#fbbf24", fontFamily: "JetBrains Mono, monospace" }}>PR: {p.score}</span>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+
+                      {/* Shortest Dependency Path */}
+                      {currentHop.shortest_dependency_path && (
+                        <div style={{ marginBottom: 10, background: "#020617", padding: "8px 10px", borderRadius: 6 }}>
+                          <div style={{ fontSize: 9.5, color: "var(--text-muted)", textTransform: "uppercase", fontWeight: 700 }}>
+                            Shortest Dependency Blast Path:
+                          </div>
+                          <div style={{ color: "#38bdf8", fontFamily: "JetBrains Mono, monospace", fontSize: 11, marginTop: 4 }}>
+                            {currentHop.shortest_dependency_path.join(" ➔ ")}
+                          </div>
+                        </div>
+                      )}
+
+                      {/* Provenance */}
+                      {currentHop.provenance && !currentHop.abstained && (
+                        <div style={{ display: "flex", flexDirection: "column", gap: 4, fontSize: 11, color: "#cbd5e1", marginBottom: 10 }}>
+                          <div><b style={{ color: "var(--rose)" }}>Past Incident: </b>{currentHop.provenance.past_incident} — {currentHop.provenance.root_cause}</div>
+                          <div><b style={{ color: "var(--text-muted)" }}>Superseded Policy: </b><span style={{ textDecoration: "line-through", color: "#64748b" }}>{currentHop.provenance.superseded_decision}</span></div>
+                          <div><b style={{ color: "var(--emerald)" }}>Active Policy: </b>{currentHop.provenance.active_decision}</div>
+                          <div><b style={{ color: "#60a5fa" }}>Verified Target Function: </b><code style={{ color: "#fbbf24" }}>{currentHop.provenance.target_function}</code> ({currentHop.provenance.pending_ticket})</div>
+                          <div><b style={{ color: "#c084fc" }}>On-Call SRE Resolver: </b>{currentHop.provenance.on_call_expert} (<span style={{ color: "#38bdf8" }}>{currentHop.provenance.slack_channel}</span>)</div>
+                        </div>
+                      )}
+
+                      {/* Abstention Banner */}
+                      {currentHop.abstained && (
+                        <div style={{ padding: "8px 10px", background: "rgba(244,63,94,0.12)", border: "1px solid rgba(244,63,94,0.35)", borderRadius: 6, color: "#fda4af", fontSize: 11 }}>
+                          🛡️ <b>Grounded Abstention Triggered:</b> {currentHop.reason}
+                        </div>
+                      )}
+
+                      {/* Subject Matter Experts */}
+                      {currentHop.subject_matter_experts?.length > 0 && (
+                        <div style={{ marginTop: 8 }}>
+                          <div style={{ fontSize: 9.5, color: "var(--text-muted)", textTransform: "uppercase", fontWeight: 700, marginBottom: 4 }}>
+                            Routed Subject Matter Experts (AST Git History):
+                          </div>
+                          {currentHop.subject_matter_experts.map((e, i) => (
+                            <div key={i} style={{ display: "flex", justifyContent: "space-between", background: "#020617", padding: "6px 8px", borderRadius: 4, fontSize: 11, marginBottom: 4 }}>
+                              <span>👤 <b>{e.engineer}</b> ({e.role})</span>
+                              <span style={{ color: "#34d399", fontFamily: "JetBrains Mono, monospace" }}>
+                                {e.code_touch_count} commits {e.on_call ? "🚨 [ON-CALL]" : ""}
+                              </span>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+
+                      {/* Cypher Box */}
+                      <CypherInspector queries={currentHop.cypher} />
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {/* Tab 3: Bi-Temporal Agent Memory & Runbooks */}
+              {activeTab === "memory" && (
+                <div className="tab-content">
+                  <div className="card">
+                    <div className="card-title">
+                      <span>Bi-Temporal Policy Contradiction</span>
+                      <span style={{ color: "var(--cyan)", fontFamily: "JetBrains Mono, monospace", fontSize: 9.5 }}>
+                        aegis_memory_{tenant}
+                      </span>
+                    </div>
+
+                    <div className="form-group">
+                      <input
+                        value={newFact}
+                        onChange={e => setNewFact(e.target.value)}
+                        placeholder="Inject new semantic policy statement..."
+                      />
+                    </div>
+
+                    <div className="chip-row">
+                      <span className="preset-chip" onClick={() => setNewFact("Emergency SRE Policy: Raise pool_max to 1000 with Redis Cluster failover enabled.")}>
+                        ⚡ Raise pool_max to 1000
+                      </span>
+                      <span className="preset-chip" onClick={() => setNewFact("Architecture Policy: Migrate auth-token-svc caching to FalkorDB GraphRAG cache.")}>
+                        🧠 Migrate to FalkorDB Cache
+                      </span>
+                    </div>
+
+                    <div className="btn-row">
+                      <button className="btn btn-amber" style={{ flex: 1 }} onClick={mutateMemory} disabled={loading}>
+                        ⚡ Invalidate Stale &amp; Commit Active
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* Bi-Temporal Facts Diff */}
+                  <div className="card">
+                    <div className="card-title">
+                      <span>Semantic Policy Temporal State</span>
+                      <span style={{ color: "var(--emerald)", fontSize: 10 }}>VALIDITY TRACKING</span>
+                    </div>
+
+                    <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+                      {bitemporalFacts.length === 0 && (
+                        <div style={{ padding: "10px 12px", background: "#020617", border: "1px dashed rgba(51, 65, 85, 0.7)", borderRadius: 6, color: "var(--text-muted)", fontSize: 11, textAlign: "center" }}>
+                          ℹ️ No policy overrides recorded for {service}. Select <b style={{ color: "#38bdf8" }}>auth-token-svc</b> or click <b style={{ color: "var(--amber)" }}>Invalidate Stale &amp; Commit Active</b> above to inject one.
+                        </div>
+                      )}
+                      {bitemporalFacts.map((f, i) => (
+                        <div
+                          key={i}
+                          style={{
+                            background: f.invalid_at === "ACTIVE" ? "rgba(16, 185, 129, 0.08)" : "rgba(244, 63, 94, 0.06)",
+                            border: `1px solid ${f.invalid_at === "ACTIVE" ? "rgba(16, 185, 129, 0.35)" : "rgba(244, 63, 94, 0.25)"}`,
+                            borderRadius: 6, padding: "8px 10px", fontSize: 11
+                          }}
+                        >
+                          <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 3 }}>
+                            <span
+                              style={{
+                                fontSize: 9, fontWeight: 800, padding: "1px 5px", borderRadius: 3,
+                                background: f.invalid_at === "ACTIVE" ? "var(--emerald)" : "var(--rose)",
+                                color: "#000"
+                              }}
+                            >
+                              {f.invalid_at === "ACTIVE" ? "ACTIVE" : "INVALIDATED"}
+                            </span>
+                            <span style={{ fontSize: 9, color: "var(--text-muted)", fontFamily: "JetBrains Mono, monospace" }}>
+                              {f.invalid_at === "ACTIVE" ? `Valid Since: ${f.valid_at?.slice(0, 10)}` : `Invalidated: ${f.invalid_at?.slice(0, 19).replace("T", " ")}`}
+                            </span>
+                          </div>
+                          <div style={{ color: f.invalid_at === "ACTIVE" ? "#a7f3d0" : "#fda4af", textDecoration: f.invalid_at === "ACTIVE" ? "none" : "line-through" }}>
+                            {f.statement}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+
+                  {/* Procedural Runbook */}
+                  <div className="card">
+                    <div className="card-title">
+                      <span>Autonomous Procedural Runbook Chain</span>
+                      <span style={{ color: "var(--amber)", fontSize: 10 }}>CONFIDENCE 97%</span>
+                    </div>
+
+                    <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+                      {proceduralRunbook.map((r, i) => (
+                        <div key={i} style={{ background: "#020617", padding: "8px 10px", borderRadius: 6, border: "1px solid rgba(51, 65, 85, 0.6)" }}>
+                          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                            <span style={{ fontSize: 11, fontWeight: 700, color: "#f8fafc" }}>
+                              <span style={{ color: "var(--amber)" }}>Step {r.step}:</span> {r.action}
+                            </span>
+                            <span style={{ color: "var(--emerald)", fontFamily: "JetBrains Mono, monospace", fontSize: 11, fontWeight: 700 }}>
+                              {(r.success_rate * 100).toFixed(0)}%
+                            </span>
+                          </div>
+                          <div style={{ fontSize: 9.5, color: "var(--cyan)", fontFamily: "JetBrains Mono, monospace", marginTop: 2 }}>
+                            Tool: {r.tool}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+
+                  {/* Episodic Memory Sessions */}
+                  <div className="card">
+                    <div className="card-title">
+                      <span>Cross-Session Episodic Audit Trail ({recentEpisodes.length})</span>
+                      <span style={{ color: "var(--purple)", fontSize: 10 }}>ISOLATED NAMESPACE</span>
+                    </div>
+                    <div style={{ display: "flex", flexDirection: "column", gap: 5, maxHeight: 150, overflowY: "auto" }}>
+                      {recentEpisodes.map((ep, i) => (
+                        <div key={i} style={{ background: "#020617", padding: "6px 8px", borderRadius: 4, borderLeft: "2px solid var(--purple)", fontSize: 10 }}>
+                          <div style={{ color: "var(--text-muted)", fontFamily: "JetBrains Mono, monospace", fontSize: 9 }}>
+                            {ep.timestamp?.slice(0, 19).replace("T", " ")} · {ep.agent}
+                          </div>
+                          <div style={{ color: "#e2e8f0", marginTop: 2 }}>{ep.event}</div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* Tab 4: Benchmark & AST Lab */}
+              {activeTab === "benchmark" && (
+                <div className="tab-content">
+                  <div className="card">
+                    <div className="card-title">
+                      <span>Multi-Threaded Concurrency Benchmark</span>
+                      <span style={{ color: "var(--cyan)", fontSize: 10 }}>50 OPS · 10 WORKERS</span>
+                    </div>
+                    <p style={{ fontSize: 11, color: "var(--text-sub)", lineHeight: 1.5, marginBottom: 10 }}>
+                      Stress-tests FalkorDB's native multi-agent coordination by firing 50 simultaneous atomic read/write Cypher operations across thread pools.
+                    </p>
+                    <button className="btn btn-emerald" style={{ width: "100%" }} onClick={runBenchmark} disabled={loading}>
+                      ⏱️ Execute 50-Op High Concurrency Benchmark
+                    </button>
+
+                    {benchmarkResult && (
+                      <div className="impact-stat-grid" style={{ marginTop: 10 }}>
+                        <div className="impact-stat-card">
+                          <div className="impact-stat-val" style={{ color: "var(--emerald)" }}>{benchmarkResult.throughput_ops_sec}</div>
+                          <div className="impact-stat-label">Ops / Second</div>
+                        </div>
+                        <div className="impact-stat-card">
+                          <div className="impact-stat-val" style={{ color: "var(--cyan)" }}>{benchmarkResult.avg_latency_ms} ms</div>
+                          <div className="impact-stat-label">Avg Cypher Latency</div>
+                        </div>
+                        <div className="impact-stat-card">
+                          <div className="impact-stat-val" style={{ color: "var(--amber)" }}>{benchmarkResult.p99_latency_ms} ms</div>
+                          <div className="impact-stat-label">p99 Latency</div>
+                        </div>
+                        <div className="impact-stat-card">
+                          <div className="impact-stat-val" style={{ color: "#a855f7" }}>{benchmarkResult.total_ms} ms</div>
+                          <div className="impact-stat-label">Total Execution</div>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+
+                  <div className="card">
+                    <div className="card-title">
+                      <span>Live Python AST Graph Ingestion</span>
+                      <span style={{ color: "var(--purple)", fontSize: 10 }}>CODE2GRAPH</span>
+                    </div>
+                    <p style={{ fontSize: 11, color: "var(--text-sub)", lineHeight: 1.5, marginBottom: 10 }}>
+                      Parses the active <code style={{ color: "var(--cyan)" }}>main.py</code> AST live into FalkorDB, extracting functions, cyclomatic complexity scores, and linking them to services.
+                    </p>
+                    <button className="btn btn-secondary" style={{ width: "100%" }} onClick={ingestAst} disabled={loading}>
+                      📦 Parse &amp; Ingest main.py AST into FalkorDB
+                    </button>
+                  </div>
+                </div>
+              )}
+            </div>
+
+            {/* Right Graph Canvas Area */}
+            <div className="panel-right">
+              {/* Floating Legend */}
+              <div className="floating-legend" style={{ padding: legendOpen ? "10px 14px" : "6px 12px", width: legendOpen ? 295 : "auto" }}>
+                <div className="legend-header" style={{ marginBottom: legendOpen ? 6 : 0 }}>
+                  <span style={{ cursor: "pointer" }} onClick={() => setLegendOpen(!legendOpen)}>
+                    FalkorDB Node Ontology {legendOpen ? "" : `(${Object.keys(COLOR_MAP).length} Types)`}
+                  </span>
+                  <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                    {legendOpen && typeHighlight && (
+                      <span
+                        style={{ fontSize: 9, color: "var(--amber)", cursor: "pointer", fontWeight: 700 }}
+                        onClick={() => setTypeHighlight(null)}
+                      >
+                        Reset ✕
+                      </span>
+                    )}
+                    <button
+                      onClick={() => setLegendOpen(!legendOpen)}
+                      style={{
+                        background: "none", border: "none", color: "var(--cyan)",
+                        fontSize: 13, cursor: "pointer", fontWeight: 800, padding: 0
+                      }}
+                      title={legendOpen ? "Collapse Legend" : "Expand Legend"}
+                    >
+                      {legendOpen ? "−" : "+"}
+                    </button>
+                  </div>
+                </div>
+
+                {legendOpen && (
+                  <div className="legend-grid">
+                    {Object.entries(COLOR_MAP).map(([k, c]) => (
+                      <div
+                        key={k}
+                        className={`legend-item ${typeHighlight === k ? "active" : ""}`}
+                        onClick={() => setTypeHighlight(typeHighlight === k ? null : k)}
+                        title={`Click to highlight :${k} nodes on graph`}
+                      >
+                        <span className="legend-dot" style={{ background: c }} />
+                        <span style={{ color: typeHighlight === k ? "#38bdf8" : "#cbd5e1", fontWeight: typeHighlight === k ? 700 : 400 }}>
+                          {DISPLAY_NAMES[k] || k}
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+
+              {/* Force Graph */}
+              {data?.subgraph && (
+                <ForceGraphComponent
+                  graphData={data.subgraph}
+                  scopeFilter={scopeFilter}
+                  onSelectService={(svc) => {
+                    setService(svc);
+                    setActiveTab("triage");
+                    runInvestigation(svc, tenant, query);
+                  }}
+                  focusService={service}
+                  typeHighlight={typeHighlight}
+                />
+              )}
+
+              {/* Graph Telemetry Stats HUD */}
+              {data?.subgraph && (
+                <div className="graph-telemetry">
+                  <div className="stat-pill">
+                    <span className="stat-val">{nodeCount}</span>
+                    <span className="stat-lbl">Nodes</span>
+                  </div>
+                  <div className="stat-pill">
+                    <span className="stat-val">{edgeCount}</span>
+                    <span className="stat-lbl">Edges</span>
+                  </div>
+                  <div className="stat-pill">
+                    <span className="stat-val" style={{ color: "var(--amber)" }}>{pathNodeCount}</span>
+                    <span className="stat-lbl">Active Path</span>
+                  </div>
+                  <div style={{ borderLeft: "1px solid var(--border)", paddingLeft: 8, display: "flex", gap: 4 }}>
+                    {[
+                      { id: "all", label: "All" },
+                      { id: "brain", label: "🧠 Brain" },
+                      { id: "memory", label: "🤖 Memory" },
+                      { id: "path", label: "★ Path Only" }
+                    ].map(f => (
+                      <button
+                        key={f.id}
+                        className={`hud-btn ${scopeFilter === f.id ? "active" : ""}`}
+                        style={{ padding: "3px 8px", fontSize: 10 }}
+                        onClick={() => setScope(f.id)}
+                      >
+                        {f.label}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
+          </div>
+
+          {toast && <Toast msg={toast} onClose={() => setToast("")} />}
+        </div>
+      );
+    }
+
+    ReactDOM.createRoot(document.getElementById("root")).render(<App />);
+  </script>
+</body>
+</html>
