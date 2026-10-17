@@ -117,7 +117,14 @@ RETURN coalesce(old.id, 'none') AS invalidated_id, new_f.id AS active_id;
 
 The hackathon guidelines explicitly accept complete local setup instructions with Docker. Spin up the entire system with a single command:
 
+
 ```bash
+# 0. With my repo link just clone and run!!! 
+git clone https://github.com/VivekChowdary7/AegisGraph.git
+cd AegisGraph
+chmod +x start.sh
+./start.sh
+
 # 1. Clean hidden characters and make start.sh executable
 python3 -c "import pathlib; [p.write_text(p.read_text(encoding='utf-8').replace('\u00a0', ' ').replace('\u200b', ''), encoding='utf-8') for p in pathlib.Path('.').glob('*') if p.is_file()]"
 chmod +x start.sh
